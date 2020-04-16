@@ -21,6 +21,8 @@ def posix_escape(input_string):
     return input_string.replace(" ","\\ ")
 
 def get_all_target_files(output_directory,image_format):
+
+    #TO-DO: Get real file format. 1.Scalpel 2.Magic lib 3. Search into archive files 4. Anti-forensic image techniques
     all_target_files = glob.glob(output_directory + original_recovery_dir + '**/*.' + image_format, recursive=True)
     # all_target_files = [posix_escape(item) for item in all_target_files]
     return all_target_files
@@ -35,7 +37,7 @@ def move_files_to_target_dir(output_directory,all_files):
         shutil.copy2(file,output_directory,follow_symlinks=True)
 
 def recover_files(input_file,output_directory,recovery_type):
-
+    print("Starting recovery of files...")
     img = tsk.Img_Info(url=input_file)
     volume = tsk.Volume_Info(img)
 
@@ -46,8 +48,6 @@ def recover_files(input_file,output_directory,recovery_type):
         if any(part.desc.decode('utf-8')[0:3] in fs for fs in supported_file_systems):
             file_systems_to_recover.append(part.start)
 
-
-    ret_val = True
     #Recover the files
     recovery_flag = "e"
     space_character=" "
@@ -61,16 +61,14 @@ def recover_files(input_file,output_directory,recovery_type):
     for start_addr in file_systems_to_recover:
         command = "tsk_recover" + space_character + "-" + recovery_flag + "o" + space_character + str(start_addr) + \
                   space_character + input_file + space_character+ output_directory + posix_escape(original_recovery_dir)
-        # print(command)
         ret = os.system(command)
         if ret != 0:
             print("FATAL ERROR in recovery occured.")
-            ret_val = False
-            break
+            return False
 
     print("All files have been recovered! You can find them at {}".format(output_directory + posix_escape(original_recovery_dir)))
 
-    return ret_val
+    return True
 
 def load_img(image_path):
 
@@ -81,7 +79,6 @@ def load_img(image_path):
   return img
 
 def make_feature_vectors(all_target_files):
-
     #Load a pretrained model
     module_handle = "https://tfhub.dev/google/imagenet/mobilenet_v2_140_224/feature_vector/4"
     module = hub.load(module_handle)
@@ -89,8 +86,8 @@ def make_feature_vectors(all_target_files):
     #Filename,feature vector
     featurefile_dict={}
     manual_inspection=[]
-    # Loops through all images in a local folder
-    for filename in all_target_files:  # assuming gif
+
+    for filename in all_target_files:
         try:
             # Pre-process the image
             img = load_img(filename)
@@ -100,7 +97,6 @@ def make_feature_vectors(all_target_files):
             feature_set = np.squeeze(features)
             featurefile_dict[filename]=feature_set
         except:
-            # print("Unkown error while processing " + filename)
             manual_inspection.append(filename)
             pass
 
@@ -118,7 +114,7 @@ def find_nearerst_neighbour(target_image,n_nearest_neighbors,feature_dict):
     all_features_files = feature_dict.keys()
 
     for file_index, file_name in enumerate(all_features_files):
-        # Reads feature vectors and assigns them into the file_vector
+        # Retrieve feature vectors
         file_vector = feature_dict[file_name]
 
         file_index_to_file_name[file_index] = file_name
@@ -128,44 +124,48 @@ def find_nearerst_neighbour(target_image,n_nearest_neighbors,feature_dict):
         t.add_item(file_index, file_vector)
 
 
-    # Builds annoy index
+    # Building annoy index
     t.build(trees)
 
     named_nearest_neighbors=[]
-    abs_target_path = os.path.abspath(target_image)
-    find_index = file_name_to_file_index[abs_target_path]
+    find_index = file_name_to_file_index[target_image]
 
     nearest_neighbors = t.get_nns_by_item(find_index, n_nearest_neighbors+1)
 
     for j in nearest_neighbors:
         named_nearest_neighbors.append(file_index_to_file_name[j])
 
-    named_nearest_neighbors.remove(abs_target_path)
+    named_nearest_neighbors.remove(target_image)
     return named_nearest_neighbors
 
 
-def driver(args):
+def create_summary(nn_found,summary_file):
+    np.savetxt(summary_file,nn_found,fmt='%s')
 
+
+def driver(args):
     ret = recover_files(args.input_file,args.output_directory,args.recovery_type)
-    if(1):
+    if(ret):
         output_dir = posix_escape(args.output_directory)
         all_target_files = get_all_target_files(output_dir, args.image_format)
 
 
         target_image = os.path.abspath(posix_escape(args.image_to_find))
         all_target_files.append(target_image)
+        print("Started processing files...")
         f_dict,m_list = make_feature_vectors(all_target_files)
 
         nn_found = find_nearerst_neighbour(target_image,args.n_value,f_dict)
         move_files_to_target_dir(output_dir+"{} most similar images/".format(args.n_value),nn_found)
-
-        print("Finished processing! You can now go find {} most similar images.".format(args.n_value))
+        #nn_found=['datadump/tool_output/Original recovery/RECYCLER/S-1-5-21-1292428093-2052111302-839522115-1003/Dc1.jpg', 'datadump/tool_output/Original recovery/RECYCLER/S-1-5-21-1292428093-2052111302-839522115-1003/Dc2.jpg', 'datadump/tool_output/Original recovery/Documents and Settings/spike/Local Settings/Temporary Internet Files/Content.IE5/MXMZUR49/out3[1].jpg']
+        create_summary(nn_found,output_dir+"{} most similar images/".format(args.n_value)+"findings_summary.txt")
+        print("Finished processing! You can now go find {} most similar images.\n Refer the findings_summary.txt file to know their origin".format(args.n_value))
         if(len(m_list)>0):
-            alert = "Please inspect the following files manually as they could not be processed"
+            alert = "Please inspect the following files manually as they could not be processed."
             alert = colored(alert, 'red')
             print(alert)
             for file in m_list:
-                print(colored(file,'yellow'))
+                print(colored(posix_escape(file),'yellow'))
 
 def main():
     parser=argparse.ArgumentParser(description="Sift for similar images in a disk image")
@@ -174,8 +174,8 @@ def main():
     parser.add_argument("-find", help="Path of target image to be found", dest="image_to_find",
                         type=str, required=True)
     parser.add_argument("-format", help="Image format to be search for(jpg or png). Default = jpg", dest="image_format", type=str, default="jpg")
-    parser.add_argument("-n",help="N-most similar images to find. Default = 3" ,dest="n_value", type=int, default="3")
-    parser.add_argument("-t", help="Recover resident files only[1] or Recover resident and deleted files[2]. Defualt = 2", dest="recovery_type",type=int, default="2")
+    parser.add_argument("-n",help="N-most similar images to find." ,dest="n_value", type=int, required=True)
+    parser.add_argument("-t", help="[1]. Recover resident files only or \n[2]. Recover resident and deleted files. Defualt = 2", dest="recovery_type",type=int, default="2")
     parser.set_defaults(func=driver)
     args=parser.parse_args()
     args.func(args)
