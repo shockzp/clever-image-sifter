@@ -4,7 +4,7 @@
 
 brew install sleuthkit
 
-python_packages=( tensorflow tensorflowhub annoy argparse )
+python_packages=( tensorflow tensorflowhub annoy argparse pytsk3 numpy)
 for package in "${python_packages[@]}"
 do
 	python3 -m pip install $package
