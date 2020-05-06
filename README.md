@@ -10,7 +10,7 @@ pre-trained models from tensorflow hub library. Using these features, Annoy libr
 nearest neighbour algorithm on these images and n-most similar images to the target image is found. Then these found
 images are copied to a folder where the user supplied so that they can view it easily.
 
-###Downloading and setting up the tool
+### Downloading and setting up the tool
 
 You can clone the whole repository and run the install.sh script by running the following command,
 ```
@@ -20,21 +20,21 @@ sh install.sh
 This should setup all the required tools and libraries to run this tool. Now, if you dont see any errors, everything 
 is good to go!
 
-###Tool help
+### Tool help
 
 The tool has help configured. Just run the tool by the following command to find it,
 ```
 ./clever-image-sifter.py
 ```
 
-###Example for running the tool
+### Example for running the tool
 ```
 ./clever-image-sifter.py -in datadump/Pswift01.dd -out datadump/tool_output/ -n 3 -find datadump/Two_chairs.jpg
 ```
 The above command means, find 3 most similar files to datadump/Two_chairs.jpg image in datadump/Pswift01.dd disk image
 and place the results of the findings in datadump/tool_output/ folder.
 
-###Known errors
+### Known errors
 
 * OSError: SavedModel file does not exist at: /var/folders/yz/9v21_dg122g76q3lbg07qhww0000gn/T/tfhub_modules/e2ca59248fa837fc8308f9ba8711723a88799917/{saved_model.pbtxt|saved_model.pb}
 
