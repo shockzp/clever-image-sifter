@@ -22,9 +22,9 @@ is good to go!
 
 ### Tool help
 
-The tool has help configured. Just run the tool by the following command to find it,
+The tool has help section configured. Just run the tool by the following command to find it,
 ```
-./clever-image-sifter.py
+./clever-image-sifter.py -h
 ```
 
 ### Example for running the tool
